@@ -1,4 +1,9 @@
 from functools import wraps
+from pyspark import SparkContext, SparkConf
+from pyspark.sql import SQLContext
+from pyspark.sql.types import *
+from pyspark.sql.session import SparkSession
+import pandas
 import os
 
 
@@ -14,28 +19,43 @@ def atomic_writing_file(inputfile,outputfile):
                         break
                     else:
                         namelen -=1
-                try:
-                    fw = open(tmpfile,'x')
+                #try:
+                    '''fw = open(tmpfile,'x')
                     with open(inputfile) as fo:
                         while True:
                             line = fo.readline()
                             if not line: break
                             fw.write(line)
+                    '''
+                    conf = SparkConf().setAppName('test_parquet')
+                    sc = SparkContext('local', 'test', conf=conf)
+                    spark = SparkSession(sc)
+                    df = spark.read.parquet(inputfile)
+                    fw = open(tmpfile,'x')
+                    #fw.write(str(df.show(1)))
+                    #print(type(df))
+                    df=df.toPandas()
+                    #print(type(df))
+                    for indexs in df.index:
+                        print("***",df.loc[indexs].values[0:-1],"***")
+                        fw.write(str(df.loc[indexs].values[0:-1])+'\n')
                     
                     fw.flush()
                     os.fsync(fw.fileno())
-                    fo.close()
+                    #fo.close()
                     fw.close()
                     os.rename(tmpfile, outputfile)
-                except:
-                    print("Oops, an error was occured...")
-                    os.remove(tmpfile)
+                    sc.stop()
+                    
+                #except:
+                #    print("Oops, an error was occured...")
+                #    os.remove(tmpfile)
 
                 return func(*args, **kwargs)
             return atomicw
     return atomic_writing_decorator
 
-@atomic_writing_file(inputfile="log.txt",outputfile="test.txt")
+@atomic_writing_file(inputfile="userdata1.parquet",outputfile="test")
 def atomic_writing():
     print("Your work is done!")
     return True
